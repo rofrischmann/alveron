@@ -76,7 +76,7 @@ describe('Rendering the <Consumer>', () => {
         },
       },
       actions: {
-        update: (state, payload) => Object.assign({}, state, { foo: payload }),
+        update: (state, payload) => ({ ...state, foo: payload }),
       },
     })
 
@@ -198,5 +198,81 @@ describe('Rendering the <Consumer>', () => {
     tree.root.findAllByType('button')[0].props.onClick()
 
     expect(tree.toJSON()).toMatchSnapshot()
+  })
+
+  it('should pipe state updates through middleware', () => {
+    const { Provider, Consumer } = createStore({
+      model: 0,
+      actions: {
+        increment: state => state + 1,
+      },
+    })
+
+    const ghostIncrement = state => state + 1
+
+    const tree = TestRenderer.create(
+      <Provider middleware={[ghostIncrement]}>
+        <Consumer>
+          {({ state, actions }) => (
+            <div>
+              <div>{state}</div>
+              <button onClick={actions.increment}>Update</button>
+            </div>
+          )}
+        </Consumer>
+      </Provider>
+    )
+
+    tree.root.findByType('button').props.onClick()
+    tree.root.findByType('button').props.onClick()
+    tree.root.findByType('button').props.onClick()
+    tree.root.findByType('button').props.onClick()
+
+    expect(tree.toJSON()).toMatchSnapshot()
+  })
+
+  it('should correctly pass context to middleware', () => {
+    const { Provider, Consumer } = createStore({
+      model: 0,
+      actions: {
+        increment: state => state + 1,
+        decrement: state => state - 1,
+        incrementBy: (state, step) => state + step,
+      },
+    })
+
+    const cache = []
+    const contextCache = (state, context) => {
+      cache.push({ ...context, nextState: state })
+      return state
+    }
+
+    const tree = TestRenderer.create(
+      <Provider middleware={[contextCache]}>
+        <Consumer>
+          {({ state, actions }) => (
+            <div>
+              <div>{state}</div>
+              <button id="increment" onClick={actions.increment}>
+                +
+              </button>
+              <button id="incrementBy2" onClick={() => actions.incrementBy(2)}>
+                +
+              </button>
+              <button id="decrement" onClick={actions.decrement}>
+                -
+              </button>
+            </div>
+          )}
+        </Consumer>
+      </Provider>
+    )
+
+    tree.root.findByProps({ id: 'increment' }).props.onClick()
+    tree.root.findByProps({ id: 'decrement' }).props.onClick()
+    tree.root.findByProps({ id: 'incrementBy2' }).props.onClick()
+
+    expect(tree.toJSON()).toMatchSnapshot()
+    expect(cache).toMatchSnapshot()
   })
 })

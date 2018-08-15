@@ -24,6 +24,10 @@ export default function createStore(
 
   return {
     Provider: class Provider extends Component {
+      static defaultProps = {
+        middleware: [],
+      }
+
       state: {
         state: any,
         actions: Object,
@@ -37,13 +41,19 @@ export default function createStore(
         const resolvedActions = Object.keys(actions).reduce((map, name) => {
           map[name] = (...payload) =>
             this.setState(prevState => ({
-              state: actions[name](prevState.state, ...payload),
+              state: this._resolveState(
+                actions[name](prevState.state, ...payload),
+                {
+                  action: name,
+                  previousState: prevState.state,
+                  payload: [...payload],
+                }
+              ),
             }))
 
           return map
         }, {})
 
-        const setState = this.setState.bind(this)
         const resolvedEffects = Object.keys(effects).reduce((map, name) => {
           map[name] = (...payload) => effects[name](resolvedActions, ...payload)
           return map
@@ -54,6 +64,13 @@ export default function createStore(
           actions: resolvedActions,
           effects: resolvedEffects,
         }
+      }
+
+      _resolveState = (state: any, context: Object): any => {
+        return this.props.middleware.reduce(
+          (finalState, middleware) => middleware(finalState, context),
+          state
+        )
       }
 
       render() {
